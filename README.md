@@ -27,9 +27,9 @@ git clone https://github.com/MuhammadEssa25/10Pearls_Project.git
 - Update the `appsettings.json` file with your database connection string.
 - Example `appsettings.json`:
   ```json
-  {
+ {
   "ConnectionStrings": {
-    "DefaultConnection": "Server=localhost;Database=taskapp;User=taskappuser;Password=Offline1234!;"
+    "DefaultConnection": "Server=your_server_name;Database=your_database_name;User Id=your_username;Password=your_password;"
   },
     ...
   }
@@ -39,6 +39,8 @@ git clone https://github.com/MuhammadEssa25/10Pearls_Project.git
 ```bash
 dotnet ef migrations add InitialCreate
 dotnet ef database update
+also you need to create one admin from the mysql query use the database that you created and add this query (please use the same that you inserted into deafult connections)
+INSERT INTO User (Name, Email, Password, Role) VALUES ('your_name', 'your_mail', 'your_password', 'Admin');
 ```
 
 ### 4. Install dependencies:
@@ -51,12 +53,12 @@ dotnet restore
 dotnet run
 ```
 The backend API will be available at `http://localhost:5205`
-
+for swagger : http://localhost:5205/swagger/index.html
 
 ## Frontend Setup
 ### 1. Navigate to the frontend directory:
 ```bash
-cd ../../frontend
+cd ../../frontend/my-app
 ```
 
 ### 2. Install dependencies:

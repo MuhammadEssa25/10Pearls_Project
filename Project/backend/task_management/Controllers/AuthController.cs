@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using BCrypt.Net;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -37,9 +36,9 @@ namespace task_management.Controllers
 
             try
             {
-                user.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
                 user.Role = UserRole; // Default role
 
+                // Store password as plain text (no bcrypt)
                 _context.User.Add(user);
                 await _context.SaveChangesAsync();
 
@@ -88,7 +87,7 @@ namespace task_management.Controllers
                 return BadRequest("Username and password are required.");
 
             var user = await _context.User.FirstOrDefaultAsync(u => u.Name == loginRequest.Name);
-            if (user == null || !BCrypt.Net.BCrypt.Verify(loginRequest.Password, user.Password))
+            if (user == null || user.Password != loginRequest.Password) // Compare plain text password
                 return Unauthorized(new { error = "Invalid username or password." });
 
             try
