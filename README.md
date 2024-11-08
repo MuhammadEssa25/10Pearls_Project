@@ -19,7 +19,7 @@ Make sure you have the following installed on your machine:
 ## Backend Setup
 ### 1. Clone the repository:
 ```bash
-git clone -b version-2.0 https://github.com/MuhammadEssa25/10Pearls_Project.git
+git clone https://github.com/MuhammadEssa25/10Pearls_Project.git
  cd 10Pearls_Project/
 ```
 
@@ -28,9 +28,9 @@ git clone -b version-2.0 https://github.com/MuhammadEssa25/10Pearls_Project.git
 - Example `appsettings.json`:
   ```json
   {
-    "ConnectionStrings": {
-      "DefaultConnection": "Server=your_server_name;Database=your_database_name;User Id=your_username;Password=your_password;"
-    },
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Database=taskapp;User=taskappuser;Password=Offline1234!;"
+  },
     ...
   }
   ```
@@ -61,10 +61,11 @@ cd ../../frontend
 
 ### 2. Install dependencies:
 ```bash
-npm install bootsrap
+npm install bootstrap
 npm install react-router-dom
-npm install jwtdecoder
-npm install bootsrap
+npm install jwt-decode
+npm install react-bootstrap
+
 ```
 
 
@@ -76,14 +77,31 @@ The frontend will be available at ` http://localhost:3000/`.
 
 
 # Tech Stack:
-Following Tech Stack is being implemented:
-- React + Typescript for frontend
-- ASP.NET Core Web Api
-- SQL Server Management Studio for database
-- Redux for state management in React
-- Serilog for Application logging (to be implemented)
-- xUnit for unit testing (to be implemented)
-- SonarQube for analyzing code quality (to be implemented)
+The following technologies are used in this project:
+
+Frontend:
+React + TypeScript for building the user interface
+Redux for state management in React
+Bootstrap for styling
+React Router for handling routing
+Axios for HTTP requests
+JWT for user authentication
+
+Backend:
+ASP.NET Core Web API
+Entity Framework Core for ORM and database management
+xUnit for unit testing (to be implemented)
+Serilog for application logging (to be implemented)
+Swagger for API documentation
+
+Database:
+SQL Server (or other preferred databases like MySQL using Pomelo.EntityFrameworkCore.MySql)
+Tools & Services:
+
+SonarQube for analyzing code quality (to be implemented)
+Visual Studio for development (optional)
 
 ## Additional Information
-TBD
+Authentication: This system supports JWT-based authentication. You will need to create a JWT token for secure API access.
+Logging: Application logs are being handled by Serilog, which will provide insights into the application's behavior (implementation to be done).
+Testing: Unit tests are being implemented using xUnit for various backend services.
