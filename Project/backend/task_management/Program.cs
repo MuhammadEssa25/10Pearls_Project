@@ -1,12 +1,24 @@
-    using Microsoft.AspNetCore.Authentication.JwtBearer;
-    using Microsoft.EntityFrameworkCore;
-    using Microsoft.IdentityModel.Tokens;
-    using Microsoft.OpenApi.Models;
-    using task_management.Models;
-    using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
+using task_management.Models;
+using System.Text;
+using Serilog;
+using Serilog.Events;
 
     var builder = WebApplication.CreateBuilder(args);
 
+
+    Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/task_management_.txt", rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+    builder.Host.UseSerilog();
     // Configure CORS
     // Allows us to share APIs with other apps such as react in our case
     builder.Services.AddCors(options =>
@@ -19,6 +31,8 @@
                     .AllowAnyHeader();
             });
     });
+
+    
 
     // Configure Entity Framework with MySQL
     builder.Services.AddDbContext<ApplicationDBContext>(options =>
@@ -97,7 +111,7 @@
 
     // Enable CORS
     app.UseCors("AllowAllOrigins");
-
+    
     // Enable Swagger
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -111,3 +125,4 @@
     app.UseHttpsRedirection();
     app.MapControllers();
     app.Run();
+    app.MapGet("/", () => "Hello World!");

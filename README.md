@@ -92,18 +92,18 @@ JWT for user authentication
 Backend:
 ASP.NET Core Web API
 Entity Framework Core for ORM and database management
-xUnit for unit testing (to be implemented)
-Serilog for application logging (to be implemented)
+xUnit for unit testing 
+Serilog for application logging 
 Swagger for API documentation
 
 Database:
 SQL Server (or other preferred databases like MySQL using Pomelo.EntityFrameworkCore.MySql)
 Tools & Services:
 
-SonarQube for analyzing code quality (to be implemented)
-Visual Studio for development (optional)
+SonarQube for analyzing code quality 
+Visual Studio for development 
 
 ## Additional Information
 Authentication: This system supports JWT-based authentication. You will need to create a JWT token for secure API access.
-Logging: Application logs are being handled by Serilog, which will provide insights into the application's behavior (implementation to be done).
+Logging: Application logs are being handled by Serilog, which will provide insights into the application's behavior 
 Testing: Unit tests are being implemented using xUnit for various backend services.

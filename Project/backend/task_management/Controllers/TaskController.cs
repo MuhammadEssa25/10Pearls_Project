@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using task_management.Models;
 using System.Security.Claims;
+using Serilog;
 
 namespace task_management.Controllers
 {
@@ -38,11 +40,12 @@ namespace task_management.Controllers
                 }
 
                 var tasks = await query.ToListAsync();
+                Log.Information("Retrieved {TaskCount} tasks for user {UserId}", tasks.Count, userId);
                 return tasks;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error retrieving tasks: {ex.Message}");
+                Log.Error(ex, "Error retrieving tasks");
                 return StatusCode(500, new { error = "Failed to retrieve tasks." });
             }
         }
@@ -61,43 +64,23 @@ namespace task_management.Controllers
 
                 if (task == null)
                 {
+                    Log.Information("Task not found: {TaskId}", id);
                     return NotFound(new { error = "Task not found." });
                 }
 
                 if (userRole != "Admin" && task.AssignedToUserId != userId)
                 {
+                    Log.Warning("Unauthorized access attempt to task {TaskId} by user {UserId}", id, userId);
                     return Forbid();
                 }
 
+                Log.Information("Task retrieved: {TaskId}", id);
                 return task;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error retrieving task {id}: {ex.Message}");
+                Log.Error(ex, "Error retrieving task {TaskId}", id);
                 return StatusCode(500, new { error = "Failed to retrieve the task." });
-            }
-        }
-
-        [HttpGet("count")]
-        public async Task<ActionResult<TaskCounts>> GetTaskCounts()
-        {
-            try
-            {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
-
-                var counts = new TaskCounts
-                {
-                    Completed = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "Completed"),
-                    InProgress = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "In Progress"),
-                    Pending = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "Pending")
-                };
-
-                return Ok(counts);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error retrieving task counts: {ex.Message}");
-                return StatusCode(500, new { error = "Failed to retrieve task counts." });
             }
         }
 
@@ -107,11 +90,13 @@ namespace task_management.Controllers
         {
             if (task == null || string.IsNullOrWhiteSpace(task.Title))
             {
+                Log.Warning("Invalid task creation attempt");
                 return BadRequest(new { error = "Task title is required." });
             }
             var assignedUser = await _context.User.FindAsync(task.AssignedToUserId);
             if (assignedUser == null)
             {
+                Log.Warning("Task creation attempt with non-existent user: {UserId}", task.AssignedToUserId);
                 return BadRequest(new { error = "Assigned user does not exist." });
             }
 
@@ -122,20 +107,22 @@ namespace task_management.Controllers
                 await _context.SaveChangesAsync();
 
                 task.AssignedToUser = null;
+                Log.Information("Task created: {TaskId}", task.Id);
                 return CreatedAtAction(nameof(GetTask), new { id = task.Id }, task);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error creating task: {ex.Message}");
+                Log.Error(ex, "Error creating task");
                 return StatusCode(500, new { error = "Failed to create task." });
             }
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutTask(int id, Models.Task task)
+        public async Task<IActionResult> UpdateTask(int id, Models.Task task)
         {
             if (id != task.Id)
             {
+                Log.Warning("Task update attempt with mismatched IDs");
                 return BadRequest(new { error = "Task ID mismatch." });
             }
 
@@ -145,44 +132,47 @@ namespace task_management.Controllers
             var existingTask = await _context.Task.FindAsync(id);
             if (existingTask == null)
             {
+                Log.Information("Update attempt for non-existent task: {TaskId}", id);
                 return NotFound(new { error = "Task not found." });
             }
 
             if (userRole != "Admin" && existingTask.AssignedToUserId != userId)
             {
+                Log.Warning("Unauthorized task update attempt: {TaskId} by user {UserId}", id, userId);
                 return Forbid();
             }
 
             if (userRole != "Admin")
             {
-                // Regular users can only update the status
                 existingTask.Status = task.Status;
             }
             else
             {
-                // Admins can update all fields
                 _context.Entry(existingTask).CurrentValues.SetValues(task);
             }
 
             try
             {
                 await _context.SaveChangesAsync();
+                Log.Information("Task updated: {TaskId}", id);
                 return NoContent();
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException ex)
             {
                 if (!TaskExists(id))
                 {
+                    Log.Information("Concurrency error: Task not found {TaskId}", id);
                     return NotFound(new { error = "Task not found." });
                 }
                 else
                 {
+                    Log.Error(ex, "Concurrency error updating task {TaskId}", id);
                     return StatusCode(500, new { error = "Failed to update the task due to concurrency issues." });
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error updating task {id}: {ex.Message}");
+                Log.Error(ex, "Error updating task {TaskId}", id);
                 return StatusCode(500, new { error = "Failed to update the task." });
             }
         }
@@ -196,21 +186,49 @@ namespace task_management.Controllers
                 var task = await _context.Task.FindAsync(id);
                 if (task == null)
                 {
+                    Log.Information("Delete attempt for non-existent task: {TaskId}", id);
                     return NotFound(new { error = "Task not found." });
                 }
 
                 _context.Task.Remove(task);
                 await _context.SaveChangesAsync();
 
+                Log.Information("Task deleted: {TaskId}", id);
                 return NoContent();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error deleting task {id}: {ex.Message}");
+                Log.Error(ex, "Error deleting task {TaskId}", id);
                 return StatusCode(500, new { error = "Failed to delete the task." });
             }
         }
+        [HttpGet("count")]
+        public async Task<ActionResult<TaskCounts>> GetTaskCounts()
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                
+                Log.Information("Retrieving task counts for user: {UserId}", userId);
 
+                var counts = new TaskCounts
+                {
+                    Completed = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "Completed"),
+                    InProgress = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "In Progress"),
+                    Pending = await _context.Task.CountAsync(t => t.AssignedToUserId == userId && t.Status == "Pending")
+                };
+
+                Log.Information("Task counts retrieved for user {UserId}: Completed={Completed}, InProgress={InProgress}, Pending={Pending}",
+                    userId, counts.Completed, counts.InProgress, counts.Pending);
+
+                return Ok(counts);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error retrieving task counts for user: {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+                return StatusCode(500, new { error = "Failed to retrieve task counts." });
+            }
+        }
         private bool TaskExists(int id)
         {
             return _context.Task.Any(e => e.Id == id);

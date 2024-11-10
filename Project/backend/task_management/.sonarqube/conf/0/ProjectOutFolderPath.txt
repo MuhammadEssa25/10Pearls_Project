@@ -1,0 +1,1 @@
+/home/muhammadessa/Projects/10pearls/Project/backend/task_management/.sonarqube/out/0
