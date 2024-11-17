@@ -39,8 +39,6 @@ git clone https://github.com/MuhammadEssa25/10Pearls_Project.git
 ```bash
 dotnet ef migrations add InitialCreate
 dotnet ef database update
-also you need to create one admin from the mysql query use the database that you created and add this query (please use the same that you inserted into deafult connections)
-INSERT INTO User (Name, Email, Password, Role) VALUES ('your_name', 'your_mail', 'your_password', 'Admin');
 ```
 
 ### 4. Install dependencies:
@@ -97,7 +95,10 @@ Entity Framework Core for ORM and database management
 xUnit for unit testing 
 Serilog for application logging 
 Swagger for API documentation
-
+BCrypt for hashed password
+softdeelte method
+global exceptional handling
+server side filtering
 Database:
 SQL Server (or other preferred databases like MySQL using Pomelo.EntityFrameworkCore.MySql)
 Tools & Services:
@@ -109,3 +110,4 @@ Visual Studio for development
 Authentication: This system supports JWT-based authentication. You will need to create a JWT token for secure API access.
 Logging: Application logs are being handled by Serilog, which will provide insights into the application's behavior 
 Testing: Unit tests are being implemented using xUnit for various backend services.
+
