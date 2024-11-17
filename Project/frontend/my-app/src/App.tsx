@@ -15,33 +15,30 @@ const App: React.FC = () => {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         
-        {/* Protected Routes */}
         <Route
           path="/dashboard"
-          element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} // Redirect to login if not authenticated
+          element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} 
         />
         <Route
           path="/tasklist"
-          element={isAuthenticated ? <TaskList /> : <Navigate to="/login" />} // Redirect to login if not authenticated
+          element={isAuthenticated ? <TaskList /> : <Navigate to="/login" />} 
         />
         <Route
           path="/tasklist/tasks/new"
-          element={isAuthenticated ? <NewTask /> : <Navigate to="/login" />} // Redirect to login if not authenticated
+          element={isAuthenticated ? <NewTask /> : <Navigate to="/login" />} 
         />
         <Route
           path="/task/:id"
-          element={isAuthenticated ? <TaskDetail /> : <Navigate to="/login" />} // Redirect to login if not authenticated
+          element={isAuthenticated ? <TaskDetail /> : <Navigate to="/login" />} 
         />
         <Route
           path="/user-profile"
-          element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" />} // Redirect to login if not authenticated
+          element={isAuthenticated ? <UserProfile /> : <Navigate to="/login" />} 
         />
         
-        {/* Default route redirects */}
         <Route
           path="/"
           element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />}

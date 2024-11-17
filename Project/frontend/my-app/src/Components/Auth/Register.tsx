@@ -3,13 +3,13 @@ import { useNavigate, Link } from 'react-router-dom';
 import { registerUser } from '../../Services/authService';
 
 const Register: React.FC = () => {
-    // State for form inputs
+
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
 
-    // Handle form submission
+ 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {

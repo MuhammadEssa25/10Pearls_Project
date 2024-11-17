@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -25,18 +20,34 @@ namespace task_management.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Models.Task>>> GetTasks()
+        public async Task<ActionResult<IEnumerable<Models.Task>>> GetTasks([FromQuery] TaskFilter filter)
         {
             try
             {
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
                 var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
 
-                IQueryable<Models.Task> query = _context.Task.Include(t => t.AssignedToUser);
+                IQueryable<Models.Task> query = _context.Task
+                    .Include(t => t.AssignedToUser)
+                    .Where(t => !t.IsDeleted);
 
                 if (userRole != "Admin")
                 {
                     query = query.Where(t => t.AssignedToUserId == userId);
+                }
+                if (!string.IsNullOrEmpty(filter.Status))
+                {
+                    query = query.Where(t => t.Status == filter.Status);
+                }
+
+                if (!string.IsNullOrEmpty(filter.Priority))
+                {
+                    query = query.Where(t => t.Priority == filter.Priority);
+                }
+
+                if (filter.DueDate.HasValue)
+                {
+                    query = query.Where(t => t.DueDate.HasValue && t.DueDate.Value.Date == filter.DueDate.Value.Date);
                 }
 
                 var tasks = await query.ToListAsync();
@@ -190,18 +201,19 @@ namespace task_management.Controllers
                     return NotFound(new { error = "Task not found." });
                 }
 
-                _context.Task.Remove(task);
+                task.IsDeleted = true;
                 await _context.SaveChangesAsync();
 
-                Log.Information("Task deleted: {TaskId}", id);
+                Log.Information("Task soft deleted: {TaskId}", id);
                 return NoContent();
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error deleting task {TaskId}", id);
+                Log.Error(ex, "Error soft deleting task {TaskId}", id);
                 return StatusCode(500, new { error = "Failed to delete the task." });
             }
         }
+
         [HttpGet("count")]
         public async Task<ActionResult<TaskCounts>> GetTaskCounts()
         {
@@ -229,9 +241,15 @@ namespace task_management.Controllers
                 return StatusCode(500, new { error = "Failed to retrieve task counts." });
             }
         }
+
         private bool TaskExists(int id)
         {
             return _context.Task.Any(e => e.Id == id);
+        }
+
+        internal async System.Threading.Tasks.Task GetTasks()
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -240,5 +258,12 @@ namespace task_management.Controllers
         public int Completed { get; set; }
         public int InProgress { get; set; }
         public int Pending { get; set; }
+    }
+
+    public class TaskFilter
+    {
+        public string? Status { get; set; }
+        public string? Priority { get; set; }
+        public DateTime? DueDate { get; set; }
     }
 }

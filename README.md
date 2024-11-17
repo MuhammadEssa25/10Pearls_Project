@@ -67,6 +67,8 @@ npm install bootstrap
 npm install react-router-dom
 npm install jwt-decode
 npm install react-bootstrap
+npm install @microsoft/signalr
+npm install react-csv @types/react-csv
 
 ```
 

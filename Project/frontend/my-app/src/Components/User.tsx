@@ -19,7 +19,7 @@ const UserProfile: React.FC = () => {
   };
 
   if (!isAuthenticated) {
-    return <div>Loading...</div>; // Instead of null, show a loading message or spinner
+    return <div>Loading...</div>; 
   }
 
   return (

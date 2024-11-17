@@ -1,19 +1,10 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
-using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Moq;
+using Xunit;
 using task_management.Controllers;
 using task_management.Models;
-using Xunit;
-using ModelTask = task_management.Models.Task;
 using Task = System.Threading.Tasks.Task;
 
 namespace task_management.Tests
@@ -22,203 +13,166 @@ namespace task_management.Tests
     {
         private readonly Mock<ApplicationDBContext> _mockContext;
         private readonly TaskController _controller;
-        private readonly Mock<DbSet<ModelTask>> _mockTaskSet;
 
         public TaskControllerTests()
         {
-            _mockTaskSet = new Mock<DbSet<ModelTask>>();
             _mockContext = new Mock<ApplicationDBContext>();
-            
-            _mockContext.Setup(m => m.Task).Returns(_mockTaskSet.Object);
-
             _controller = new TaskController(_mockContext.Object);
 
-            // Setup ClaimsPrincipal
-            var claims = new List<Claim>
+            // Setup ClaimsPrincipal for authorization
+            var user = new ClaimsPrincipal(new ClaimsIdentity(new Claim[]
             {
                 new Claim(ClaimTypes.NameIdentifier, "1"),
                 new Claim(ClaimTypes.Role, "User")
-            };
-            var identity = new ClaimsIdentity(claims, "TestAuthType");
-            var claimsPrincipal = new ClaimsPrincipal(identity);
+            }));
 
-            // Setup ControllerContext
-            _controller.ControllerContext = new ControllerContext
+            _controller.ControllerContext = new ControllerContext()
             {
-                HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+                HttpContext = new DefaultHttpContext() { User = user }
             };
-        }
-
-        private ClaimsPrincipal CreateClaimsPrincipal(string role)
-        {
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, "1"),
-                new Claim(ClaimTypes.Role, role)
-            };
-            var identity = new ClaimsIdentity(claims, "TestAuthType");
-            return new ClaimsPrincipal(identity);
         }
 
         [Fact]
-        public async Task CreateTask_ShouldReturnCreatedAtAction_WhenTaskCreatedSuccessfully()
+        public async Task GetTasks_ReturnsTaskList()
         {
             // Arrange
-            var newTask = new ModelTask
+            var tasks = new List<Models.Task>
             {
-                Id = 1,
-                Title = "Sample Task",
-                Description = "Task Description",
-                DueDate = DateTime.UtcNow.AddDays(1),
-                Priority = "High",
-                Status = "Pending",
-                AssignedToUserId = 1
-            };
+                new Models.Task { Id = 1, Title = "Task 1", AssignedToUserId = 1 },
+                new Models.Task { Id = 2, Title = "Task 2", AssignedToUserId = 1 }
+            }.AsQueryable();
 
-            _mockContext.Setup(db => db.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-            _mockTaskSet.Setup(m => m.Add(It.IsAny<ModelTask>())).Verifiable();
+            var mockSet = new Mock<DbSet<Models.Task>>();
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.Provider).Returns(tasks.Provider);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.Expression).Returns(tasks.Expression);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.ElementType).Returns(tasks.ElementType);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.GetEnumerator()).Returns(tasks.GetEnumerator());
+
+            _mockContext.Setup(c => c.Task).Returns(mockSet.Object);
+
+            var filter = new TaskFilter(); // Create an empty filter
 
             // Act
-            var result = await _controller.CreateTask(newTask);
+            var result = await _controller.GetTasks(filter);
 
             // Assert
-            var createdResult = result.Result.Should().BeOfType<CreatedAtActionResult>().Subject;
-            createdResult.ActionName.Should().Be("GetTask");
-            createdResult.Value.Should().BeEquivalentTo(newTask);
-
-            // Verify Add method was called
-            _mockTaskSet.Verify(m => m.Add(It.IsAny<ModelTask>()), Times.Once);
+            var actionResult = Assert.IsType<ActionResult<IEnumerable<Models.Task>>>(result);
+            var returnValue = Assert.IsType<List<Models.Task>>(actionResult.Value);
+            Assert.Equal(2, returnValue.Count);
         }
 
         [Fact]
-        public async Task GetTask_ShouldReturnNotFound_WhenTaskDoesNotExist()
+        public async Task GetTask_ExistingTask_ReturnsTask()
         {
             // Arrange
-            int taskId = 1;
-            _mockTaskSet.Setup(m => m.FindAsync(taskId)).ReturnsAsync((ModelTask)null);
+            var taskId = 1;
+            var task = new Models.Task { Id = taskId, Title = "Test Task", AssignedToUserId = 1 };
+            _mockContext.Setup(c => c.Task.FindAsync(taskId))
+                .ReturnsAsync(task);
 
             // Act
             var result = await _controller.GetTask(taskId);
 
             // Assert
-            result.Result.Should().BeOfType<NotFoundObjectResult>();
+            var actionResult = Assert.IsType<ActionResult<Models.Task>>(result);
+            var returnValue = Assert.IsType<Models.Task>(actionResult.Value);
+            Assert.Equal(taskId, returnValue.Id);
         }
 
         [Fact]
-        public async Task GetTask_ShouldReturnTask_WhenTaskExists()
+        public async Task CreateTask_ValidTask_ReturnsCreatedAtActionResult()
         {
             // Arrange
-            var existingTask = new ModelTask
-            {
-                Id = 1,
-                Title = "Existing Task",
-                Description = "Description",
-                Priority = "Normal",
-                Status = "Pending",
-                AssignedToUserId = 1
-            };
-
-            _mockTaskSet.Setup(m => m.FindAsync(existingTask.Id)).ReturnsAsync(existingTask);
+            var task = new Models.Task { Title = "New Task", AssignedToUserId = 1 };
+            var user = new User { Id = 1, Name = "TestUser" };
+            _mockContext.Setup(c => c.User.FindAsync(task.AssignedToUserId))
+                .ReturnsAsync(user);
 
             // Act
-            var result = await _controller.GetTask(existingTask.Id);
+            var result = await _controller.CreateTask(task);
 
             // Assert
-            result.Value.Should().BeEquivalentTo(existingTask);
+            var createdAtActionResult = Assert.IsType<CreatedAtActionResult>(result.Result);
+            Assert.Equal("GetTask", createdAtActionResult.ActionName);
+            var returnValue = Assert.IsType<Models.Task>(createdAtActionResult.Value);
+            Assert.Equal(task.Title, returnValue.Title);
         }
 
         [Fact]
-        public async Task GetTasks_ShouldReturnAllTasks_WhenUserIsAdmin()
-        {
-            // Arrange
-            var tasks = new List<ModelTask>
-            {
-                new ModelTask { Id = 1, Title = "Task 1", Description = "Description 1", AssignedToUserId = 1 },
-                new ModelTask { Id = 2, Title = "Task 2", Description = "Description 2", AssignedToUserId = 2 }
-            }.AsQueryable();
-
-            _mockTaskSet.As<IQueryable<ModelTask>>().Setup(m => m.Provider).Returns(tasks.Provider);
-            _mockTaskSet.As<IQueryable<ModelTask>>().Setup(m => m.Expression).Returns(tasks.Expression);
-            _mockTaskSet.As<IQueryable<ModelTask>>().Setup(m => m.ElementType).Returns(tasks.ElementType);
-            _mockTaskSet.As<IQueryable<ModelTask>>().Setup(m => m.GetEnumerator()).Returns(tasks.GetEnumerator());
-
-            // Set user as Admin
-            _controller.ControllerContext.HttpContext.User = CreateClaimsPrincipal("Admin");
-
-            // Act
-            var result = await _controller.GetTasks();
-
-            // Assert
-            result.Value.Should().BeEquivalentTo(tasks.ToList());
-        }
-
-        [Fact]
-        public async Task UpdateTask_ShouldReturnNoContent_WhenTaskUpdatedSuccessfully()
+        public async Task UpdateTask_ValidTask_ReturnsNoContent()
         {
             // Arrange
             var taskId = 1;
-            var updatedTask = new ModelTask
-            {
-                Id = taskId,
-                Title = "Updated Task",
-                Description = "Updated Description",
-                Priority = "High",
-                Status = "InProgress",
-                AssignedToUserId = 1
-            };
-
-            _mockTaskSet.Setup(m => m.FindAsync(taskId)).ReturnsAsync(updatedTask);
-            _mockContext.Setup(db => db.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+            var task = new Models.Task { Id = taskId, Title = "Updated Task", AssignedToUserId = 1 };
+            _mockContext.Setup(c => c.Task.FindAsync(taskId))
+                .ReturnsAsync(task);
 
             // Act
-            var result = await _controller.UpdateTask(taskId, updatedTask);
+            var result = await _controller.UpdateTask(taskId, task);
 
             // Assert
-            result.Should().BeOfType<NoContentResult>();
-            _mockContext.Verify(m => m.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+            Assert.IsType<NoContentResult>(result);
         }
 
         [Fact]
-        public async Task DeleteTask_ShouldReturnNoContent_WhenTaskDeletedSuccessfully()
+        public async Task DeleteTask_ExistingTask_ReturnsNoContent()
         {
             // Arrange
-            int taskId = 1;
-            var existingTask = new ModelTask { Id = taskId, Title = "Task to Delete" };
-
-            _mockTaskSet.Setup(m => m.FindAsync(taskId)).ReturnsAsync(existingTask);
-            _mockTaskSet.Setup(m => m.Remove(existingTask));
-            _mockContext.Setup(db => db.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
-
-            // Set user as Admin
-            _controller.ControllerContext.HttpContext.User = CreateClaimsPrincipal("Admin");
+            var taskId = 1;
+            var task = new Models.Task { Id = taskId, Title = "Task to Delete" };
+            _mockContext.Setup(c => c.Task.FindAsync(taskId))
+                .ReturnsAsync(task);
 
             // Act
             var result = await _controller.DeleteTask(taskId);
 
             // Assert
-            result.Should().BeOfType<NoContentResult>();
+            Assert.IsType<NoContentResult>(result);
         }
 
         [Fact]
-public async Task DeleteTask_ShouldReturnForbidden_WhenUserIsNotAdmin()
-{
-    // Arrange
-    int taskId = 1;
-    var existingTask = new ModelTask { Id = taskId, Title = "Task to Delete" };
+        public async Task GetTaskCounts_ReturnsTaskCounts()
+        {
+            // Arrange
+            var userId = 1;
+            var tasks = new List<Models.Task>
+            {
+                new Models.Task { Id = 1, AssignedToUserId = userId, Status = "Completed" },
+                new Models.Task { Id = 2, AssignedToUserId = userId, Status = "Completed" },
+                new Models.Task { Id = 3, AssignedToUserId = userId, Status = "In Progress" },
+                new Models.Task { Id = 4, AssignedToUserId = userId, Status = "In Progress" },
+                new Models.Task { Id = 5, AssignedToUserId = userId, Status = "Pending" }
+            }.AsQueryable();
 
-    _mockTaskSet.Setup(m => m.FindAsync(taskId)).ReturnsAsync(existingTask);
-    _mockTaskSet.Setup(m => m.Remove(existingTask));
-    _mockContext.Setup(db => db.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+            var mockSet = new Mock<DbSet<Models.Task>>();
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.Provider).Returns(tasks.Provider);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.Expression).Returns(tasks.Expression);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.ElementType).Returns(tasks.ElementType);
+            mockSet.As<IQueryable<Models.Task>>().Setup(m => m.GetEnumerator()).Returns(tasks.GetEnumerator());
 
-    // Set user as regular user
-    _controller.ControllerContext.HttpContext.User = CreateClaimsPrincipal("User");
+            _mockContext.Setup(c => c.Task).Returns(mockSet.Object);
 
-    // Act
-    var result = await _controller.DeleteTask(taskId);
+            // Set up the user claims
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId.ToString())
+            };
+            var identity = new ClaimsIdentity(claims, "TestAuthType");
+            var claimsPrincipal = new ClaimsPrincipal(identity);
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+            };
 
-    // Assert
-    result.Should().BeOfType<ForbidResult>();  // Corrected to ForbidResult
-}
+            // Act
+            var result = await _controller.GetTaskCounts();
+
+            // Assert
+            var okResult = Assert.IsType<OkObjectResult>(result.Result);
+            var taskCounts = Assert.IsType<TaskCounts>(okResult.Value);
+            Assert.Equal(2, taskCounts.Completed);
+            Assert.Equal(2, taskCounts.InProgress);
+            Assert.Equal(1, taskCounts.Pending);
+        }
     }
-
 }

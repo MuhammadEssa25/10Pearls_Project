@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -18,15 +17,17 @@ namespace task_management.Models
         public DateTime? DueDate { get; set; }
 
         [Required]
-        public string Priority { get; set; } = "Normal"; 
+        public string Priority { get; set; } = "Normal";
 
         [Required]
-        public string Status { get; set; } = "Pending"; 
+        public string Status { get; set; } = "Pending";
 
         [ForeignKey("AssignedToUser")]
         [Required]
         public int AssignedToUserId { get; set; }
 
-        public User? AssignedToUser { get; set; } 
+        public User? AssignedToUser { get; set; }
+
+        public bool IsDeleted { get; set; } = false;
     }
 }

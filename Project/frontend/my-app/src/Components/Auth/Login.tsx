@@ -4,23 +4,23 @@ import { loginUser } from '../../Services/authService';
 import { useAuth } from '../../Hooks/useAuth';
 
 const Login: React.FC = () => {
-    // State for form inputs
+
     const [name, setName] = useState('');
     const [password, setPassword] = useState('');
     const navigate = useNavigate();
     const { isAuthenticated, checkAuthStatus } = useAuth();
 
-    // Redirect if already authenticated
+
     useEffect(() => {
         if (isAuthenticated) navigate('/dashboard');
     }, [isAuthenticated, navigate]);
 
-    // Handle form submission
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             await loginUser(name, password);
-            await checkAuthStatus(); // Update auth status
+            await checkAuthStatus(); 
         } catch (error) {
             alert('Login failed. Please check your credentials and try again.');
         }

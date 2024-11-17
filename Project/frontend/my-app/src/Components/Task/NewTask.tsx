@@ -5,7 +5,6 @@ import { createTask, getUsers } from '../../Services/taskService';
 import { User, Task } from '../../Services/types';
 import { useNavigate } from 'react-router-dom';
 
-
 const NewTask: React.FC = () => {
   const navigate = useNavigate();
   const { username } = useAuth();

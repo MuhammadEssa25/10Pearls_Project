@@ -1,17 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using task_management.Models;
+using task_management.Services;
 using Serilog;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 
 namespace task_management.Controllers
 {
@@ -21,14 +16,17 @@ namespace task_management.Controllers
     {
         private readonly ApplicationDBContext _context;
         private readonly IConfiguration _configuration;
+        private readonly PasswordService _passwordService;
         private const string AdminRole = "Admin";
         private const string UserRole = "User";
 
-        public AuthController(ApplicationDBContext context, IConfiguration configuration)
+        public AuthController(ApplicationDBContext context, IConfiguration configuration, PasswordService passwordService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _passwordService = passwordService ?? throw new ArgumentNullException(nameof(passwordService));
         }
+
 
         [HttpPost("register")]
         public async Task<ActionResult<User>> Register(User user, CancellationToken cancellationToken)
@@ -40,7 +38,7 @@ namespace task_management.Controllers
             }
 
             var emailExists = await _context.User
-                .AnyAsync(u => u.Email == user.Email, cancellationToken);
+                .AnyAsync(u => u.Email == user.Email && !u.IsDeleted, cancellationToken);
             if (emailExists)
             {
                 Log.Information("Registration attempt with existing email: {Email}", user.Email);
@@ -50,6 +48,7 @@ namespace task_management.Controllers
             try
             {
                 user.Role = UserRole;
+                user.Password = _passwordService.HashPassword(user.Password);
                 _context.User.Add(user);
                 await _context.SaveChangesAsync(cancellationToken);
 
@@ -60,14 +59,9 @@ namespace task_management.Controllers
                     user = new { user.Id, user.Name, user.Email, user.Role }
                 });
             }
-            catch (DbUpdateException ex)
-            {
-                Log.Error(ex, "Error occurred while saving user to database");
-                return StatusCode(500, new { error = "An error occurred while saving to the database." });
-            }
             catch (Exception ex)
             {
-                Log.Error(ex, "Unexpected error during user registration");
+                Log.Error(ex, "Error occurred during user registration");
                 return StatusCode(500, new { error = "An error occurred during registration." });
             }
         }
@@ -85,8 +79,43 @@ namespace task_management.Controllers
             Log.Information("User retrieved: {UserId}", id);
             return user;
         }
+        //Automatically creates a user with admin right 
+        [HttpPost("ensure-admin")]
+        public async Task<ActionResult> EnsureAdminExists(CancellationToken cancellationToken)
+        {
+        try
+        {
+        var adminExists = await _context.User
+            .AnyAsync(u => u.Name == "admin" && u.Role == AdminRole && !u.IsDeleted, cancellationToken);
 
-        [HttpGet]
+        if (!adminExists)
+        {
+            var hashedPassword = _passwordService.HashPassword("admin");
+            var adminUser = new User
+            {
+                Name = "admin",
+                Password = hashedPassword,
+                Role = AdminRole,
+                Email = "admin@default.com", 
+            };
+
+            _context.User.Add(adminUser);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            Log.Information("Admin user created successfully.");
+            return Ok(new { message = "Admin user created successfully." });
+        }
+
+        Log.Information("Admin user already exists.");
+        return Ok(new { message = "Admin user already exists." });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error occurred while ensuring admin user exists.");
+        return StatusCode(500, new { error = "An error occurred while ensuring admin user exists." });
+    }
+    }
+    [HttpGet]
         public async Task<ActionResult<IEnumerable<User>>> GetUsers(CancellationToken cancellationToken)
         {
             try
@@ -103,7 +132,7 @@ namespace task_management.Controllers
         }
 
         [HttpPost("login")]
-         public async Task<ActionResult<string>> Login([FromBody] LoginRequest loginRequest)
+        public async Task<ActionResult<string>> Login([FromBody] LoginRequest loginRequest)
         {
             if (loginRequest == null || string.IsNullOrEmpty(loginRequest.Name) || string.IsNullOrEmpty(loginRequest.Password))
             {
@@ -112,8 +141,8 @@ namespace task_management.Controllers
             }
 
             var user = await _context.User
-                .FirstOrDefaultAsync(u => u.Name == loginRequest.Name);
-            if (user == null || user.Password != loginRequest.Password)
+                .FirstOrDefaultAsync(u => u.Name == loginRequest.Name && !u.IsDeleted);
+            if (user == null || !_passwordService.VerifyPassword(loginRequest.Password, user.Password))
             {
                 Log.Warning("Failed login attempt for user: {UserName}", loginRequest.Name);
                 return Unauthorized(new { error = "Invalid username or password." });
@@ -131,7 +160,6 @@ namespace task_management.Controllers
                 return StatusCode(500, new { error = "Error generating JWT token." });
             }
         }
-
         private string GenerateJwtToken(User user)
         {
             var key = _configuration["Jwt:Key"];
@@ -167,7 +195,6 @@ namespace task_management.Controllers
             return tokenHandler.WriteToken(token);
         }
     }
-
     public class LoginRequest
     {
         public required string Name { get; set; }

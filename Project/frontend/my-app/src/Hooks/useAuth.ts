@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 
-// Define types for the decoded JWT token and authentication state
 interface DecodedToken {
   unique_name: string;
   nameid: string;
@@ -19,7 +18,6 @@ interface AuthState {
 }
 
 export const useAuth = () => {
-  // Initialize state with a function to check token validity on first load
   const [authState, setAuthState] = useState<AuthState>(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -48,7 +46,6 @@ export const useAuth = () => {
     };
   });
 
-  // Check authentication status from localStorage token
   const checkAuthStatus = useCallback(() => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -66,7 +63,7 @@ export const useAuth = () => {
               prevState.role === decoded.role
             );
             if (isTokenValid) {
-              return prevState; // Return previous state if token is still valid
+              return prevState; 
             }
             return {
               isAuthenticated: true,
@@ -77,29 +74,27 @@ export const useAuth = () => {
             };
           });
         } else {
-          logout(); // Expired token, log out the user
+          logout(); 
         }
       } catch (error) {
         console.error('Error decoding token:', error);
-        logout(); // Token decoding error, log out the user
+        logout(); 
       }
     } else {
-      logout(); // No token found, log out
+      logout(); 
     }
   }, []);
 
-  // Run checkAuthStatus on component mount
+
   useEffect(() => {
     checkAuthStatus();
   }, [checkAuthStatus]);
 
-  // Login method: save the token and recheck authentication
   const login = useCallback((token: string) => {
     localStorage.setItem('token', token);
     checkAuthStatus();
   }, [checkAuthStatus]);
 
-  // Logout method: remove token and reset authentication state
   const logout = useCallback(() => {
     localStorage.removeItem('token');
     setAuthState({
@@ -111,6 +106,5 @@ export const useAuth = () => {
     });
   }, []);
 
-  // Return authentication state and methods
   return { ...authState, login, logout, checkAuthStatus };
 };
